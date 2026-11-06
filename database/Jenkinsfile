@@ -1,0 +1,92 @@
+// PRACTICA 3 - Pipeline de BASE DE DATOS (dbgestor)
+// Repositorio: https://github.com/Zayda1995fer/Ejercicio5   Script Path: database/Jenkinsfile
+// Carga el script database/dbgestor.sql en una base TEMPORAL (no toca dbgestor real),
+// ejecuta las validaciones de calidad de database/validaciones.sql y al final borra la base temporal.
+// Requisitos en Jenkins:
+//   - Credencial "Username with password" con ID "mysql-ci" (usuario con permiso CREATE/DROP DATABASE)
+//   - Cliente mysql en la ruta del parametro MYSQL_BIN
+def run(String cmd) {
+    if (isUnix()) { sh cmd } else { bat cmd }
+}
+
+// Ruta con el separador del sistema (cmd de Windows no acepta "/" en redirecciones)
+def ruta(String path) {
+    return isUnix() ? path : path.replace('/', '\\')
+}
+
+def mysql() {
+    return "\"${ruta(params.MYSQL_BIN + '/mysql')}\""
+}
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'MYSQL_BIN', defaultValue: 'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin', description: 'Carpeta del cliente mysql')
+        string(name: 'DB_HOST', defaultValue: '127.0.0.1', description: 'Servidor MySQL/MariaDB')
+        string(name: 'DB_PORT', defaultValue: '3306', description: 'Puerto')
+    }
+
+    environment {
+        DB_CI = "dbgestor_ci_${env.BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Analisis estatico del script SQL') {
+            steps {
+                script {
+                    def sql = readFile('database/dbgestor.sql')
+                    int tablas = sql.count('CREATE TABLE')
+                    int llaves = sql.count('PRIMARY KEY')
+                    echo "Tablas definidas: ${tablas}, PRIMARY KEY declaradas: ${llaves}"
+                    if (tablas < 5) { error 'El script no define las 5 tablas del API' }
+                    if (llaves < tablas) { error "Hay ${tablas - llaves} tablas sin PRIMARY KEY" }
+                    if (sql.toUpperCase().contains('DROP DATABASE')) { error 'El script no debe contener DROP DATABASE' }
+                    if (sql.contains('CHARSET=latin1')) { echo 'ADVERTENCIA: tablas con CHARSET=latin1 (se recomienda utf8mb4)' }
+                    if (!sql.contains('FOREIGN KEY')) { echo 'ADVERTENCIA: el esquema no declara FOREIGN KEY; la integridad se valida con datos en la etapa de validaciones' }
+                }
+            }
+        }
+
+        stage('Crear base temporal') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
+                    // MYSQL_PWD es leida por el cliente mysql: la contrasena no aparece en la linea de comandos
+                    run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} -e \"DROP DATABASE IF EXISTS ${DB_CI}; CREATE DATABASE ${DB_CI};\""
+                }
+            }
+        }
+
+        stage('Cargar esquema y datos') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
+                    run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} ${DB_CI} < ${ruta('database/dbgestor.sql')}"
+                }
+            }
+        }
+
+        stage('Validaciones de calidad e integridad') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
+                    run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} --table ${DB_CI} < ${ruta('database/validaciones.sql')} > validaciones-bd.txt"
+                }
+                script { echo readFile('validaciones-bd.txt') }
+            }
+        }
+    }
+
+    post {
+        always {
+            withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
+                script {
+                    try {
+                        run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} -e \"DROP DATABASE IF EXISTS ${DB_CI};\""
+                    } catch (e) {
+                        echo "No se pudo borrar ${DB_CI}: ${e}"
+                    }
+                }
+            }
+            archiveArtifacts artifacts: 'validaciones-bd.txt', allowEmptyArchive: true
+        }
+    }
+}

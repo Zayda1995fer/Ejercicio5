@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.mx.cbtis.gestor.modelo.Usuario;
 import com.mx.cbtis.gestor.repository.UsuarioRepository;
@@ -20,7 +22,11 @@ public class UsuarioController {
 	
 	@Autowired
 	UsuarioRepository usuariotable;
-	
+
+	private static boolean estaVacio(String valor) {
+		return valor == null || valor.isBlank();
+	}
+
 	@PostMapping("/getUsuarioLogin")
 	public Usuario getUsuarioLogin(@RequestBody Usuario userParam) {
 		
@@ -55,7 +61,12 @@ public class UsuarioController {
 	@PostMapping("/addUsuario")
 	public int addUsuario(@RequestBody Usuario usuario) {
 		int flag = 0;
-		if(!usuario.equals(null)) {
+		if(usuario != null) {
+			// PRACTICA 3 (defecto UT-06 de la practica 2): sin correo o contrasena no se puede iniciar sesion,
+			// asi que no se guarda y se responde 400 Bad Request
+			if(estaVacio(usuario.getCorreo_electronico()) || estaVacio(usuario.getContrasena())) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El correo y la contrasena son obligatorios");
+			}
 			usuariotable.save(usuario);
 			flag = 1;
 		}
@@ -66,7 +77,7 @@ public class UsuarioController {
 	@PostMapping("/updateUsuario")
 	public int updateUsuario(@RequestBody Usuario usuario) {
 		int flag = 0;
-		if(!usuario.equals(null)) {
+		if(usuario != null) {
 			usuariotable.save(usuario);
 			flag = 1;
 		}
@@ -77,7 +88,7 @@ public class UsuarioController {
 	@DeleteMapping("/deleteUsuario")
 	public int deleteUsuario(@RequestBody Usuario usuario) {
 		int flag = 0;
-		if(!usuario.equals(null)) {
+		if(usuario != null) {
 			usuariotable.delete(usuario);
 			flag = 1;
 		}

@@ -1,0 +1,19 @@
+# Compilacion de Maven (no se versiona ni se escanea)
+target/
+
+# Reportes generados por los pipelines
+/trivy-*.txt
+/trivy-*.json
+/validaciones-bd.txt
+
+# Asistente de modernizacion del IDE
+.github/modernize/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.DS_Store

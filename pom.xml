@@ -5,8 +5,9 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<!-- UPGRADE JAVA 21: antes 2.7.17. Spring Boot 2.x no soporta Java 21; 3.2.5 si (misma version que Ejercicio5Cliente) -->
-		<version>3.2.5</version>
+		<!-- UPGRADE JAVA 21: antes 2.7.17 (pom.original.xml). Spring Boot 2.x no soporta Java 21 y usa javax.persistence -->
+		<!-- PRACTICA 3: 4.1.2 (no 3.x) para atender las vulnerabilidades de Trivy (Tomcat, Spring, Jackson, MariaDB) -->
+		<version>4.1.2</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.mx.cbtis</groupId>
@@ -19,6 +20,8 @@
 		<java.version>21</java.version>
 		<maven.compiler.release>21</maven.compiler.release>
 		<jacoco.version>0.8.12</jacoco.version>
+		<!-- PRACTICA 3: Boot 4.1.2 trae 3.5.10; 3.5.11 corrige CVE-2026-119210/119276/119280/119281 (Trivy) -->
+		<mariadb.version>3.5.11</mariadb.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -38,6 +41,18 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- PRACTICA 3: base de datos en memoria SOLO para pruebas; Jenkins no necesita MariaDB para ejecutar mvn test -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- PRACTICA 3: en Spring Boot 4 @DataJpaTest vive en su propio starter de pruebas -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -61,6 +76,12 @@
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<version>${jacoco.version}</version>
+				<configuration>
+					<excludes>
+						<!-- PRACTICA 3: exclusion documentada; la clase main solo arranca Spring (SpringApplication.run) y no tiene logica evaluable -->
+						<exclude>**/Ejercicio5MyApiGestorApplication.class</exclude>
+					</excludes>
+				</configuration>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -74,6 +95,33 @@
 						<goals>
 							<goal>report</goal>
 						</goals>
+					</execution>
+					<!-- PRACTICA 3: el build falla si la cobertura de lineas o ramas baja del 100% -->
+					<execution>
+						<id>check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>1.00</minimum>
+										</limit>
+										<limit>
+											<counter>BRANCH</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>1.00</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
