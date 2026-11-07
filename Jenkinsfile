@@ -6,7 +6,7 @@
 //   - (Analisis Sonar)  credencial "Secret text" con ID "sonar-token" y SonarQube en SONAR_HOST_URL
 //   - (Escaneo Trivy)   Docker Desktop encendido en el agente
 // Las pruebas usan H2 en memoria (src/test/resources): NO se necesita MariaDB encendida.
-def run(String cmd) {
+def ejecutar(String cmd) {
     if (isUnix()) { sh cmd } else { bat cmd }
 }
 
@@ -15,7 +15,7 @@ def trivy(String opciones) {
     String ws = isUnix() ? '$WORKSPACE' : '%WORKSPACE%'
     // Se monta el repositorio local de Maven para que Trivy resuelva tambien las dependencias transitivas (Tomcat, Jackson...)
     String m2 = isUnix() ? '$HOME/.m2' : '%USERPROFILE%\\.m2'
-    run "docker run --rm -v \"${ws}\":/src -v \"${m2}\":/root/.m2 -v trivy-cache:/root/.cache aquasec/trivy:0.58.1 fs --no-progress --skip-dirs target ${opciones} /src"
+    ejecutar "docker run --rm -v \"${ws}\":/src -v \"${m2}\":/root/.m2 -v trivy-cache:/root/.cache aquasec/trivy:0.58.1 fs --no-progress --skip-dirs target ${opciones} /src"
 }
 
 pipeline {
@@ -35,21 +35,21 @@ pipeline {
     stages {
         stage('Verificar versiones') {
             steps {
-                run 'java -version'
-                run 'mvn -v'
+                ejecutar 'java -version'
+                ejecutar 'mvn -v'
             }
         }
 
         stage('Compilar') {
             steps {
-                run 'mvn -B clean compile'
+                ejecutar 'mvn -B clean compile'
             }
         }
 
         stage('Pruebas y cobertura') {
             steps {
                 // verify = Surefire (pruebas) + JaCoCo report + JaCoCo check (100% lineas y ramas)
-                run 'mvn -B verify'
+                ejecutar 'mvn -B verify'
             }
             post {
                 always {
@@ -64,7 +64,7 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
                     // sonar.exclusions: no se analiza target/ (codigo generado); el codigo fuente si se analiza
-                    run "mvn -B sonar:sonar -Dsonar.host.url=${params.SONAR_HOST_URL} -Dsonar.projectKey=Ejercicio5MyAPIGestor -Dsonar.exclusions=**/target/** -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml -Dsonar.qualitygate.wait=true"
+                    ejecutar "mvn -B sonar:sonar -Dsonar.host.url=${params.SONAR_HOST_URL} -Dsonar.projectKey=Ejercicio5MyAPIGestor -Dsonar.exclusions=**/target/** -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml -Dsonar.qualitygate.wait=true"
                 }
             }
         }
@@ -85,7 +85,7 @@ pipeline {
 
         stage('Empaquetar') {
             steps {
-                run 'mvn -B package -DskipTests -Djacoco.skip=true'
+                ejecutar 'mvn -B package -DskipTests -Djacoco.skip=true'
             }
         }
     }

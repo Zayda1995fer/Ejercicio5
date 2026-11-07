@@ -5,7 +5,7 @@
 // Requisitos en Jenkins:
 //   - Credencial "Username with password" con ID "mysql-ci" (usuario con permiso CREATE/DROP DATABASE)
 //   - Cliente mysql en la ruta del parametro MYSQL_BIN
-def run(String cmd) {
+def ejecutar(String cmd) {
     if (isUnix()) { sh cmd } else { bat cmd }
 }
 
@@ -52,7 +52,7 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
                     // MYSQL_PWD es leida por el cliente mysql: la contrasena no aparece en la linea de comandos
-                    run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} -e \"DROP DATABASE IF EXISTS ${DB_CI}; CREATE DATABASE ${DB_CI};\""
+                    ejecutar "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} -e \"DROP DATABASE IF EXISTS ${DB_CI}; CREATE DATABASE ${DB_CI};\""
                 }
             }
         }
@@ -60,7 +60,7 @@ pipeline {
         stage('Cargar esquema y datos') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
-                    run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} ${DB_CI} < ${ruta('database/dbgestor.sql')}"
+                    ejecutar "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} ${DB_CI} < ${ruta('database/dbgestor.sql')}"
                 }
             }
         }
@@ -68,7 +68,7 @@ pipeline {
         stage('Validaciones de calidad e integridad') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
-                    run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} --table ${DB_CI} < ${ruta('database/validaciones.sql')} > validaciones-bd.txt"
+                    ejecutar "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} --table ${DB_CI} < ${ruta('database/validaciones.sql')} > validaciones-bd.txt"
                 }
                 script { echo readFile('validaciones-bd.txt') }
             }
@@ -80,7 +80,7 @@ pipeline {
             withCredentials([usernamePassword(credentialsId: 'mysql-ci', usernameVariable: 'DB_USER', passwordVariable: 'MYSQL_PWD')]) {
                 script {
                     try {
-                        run "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} -e \"DROP DATABASE IF EXISTS ${DB_CI};\""
+                        ejecutar "${mysql()} -h ${params.DB_HOST} -P ${params.DB_PORT} -u ${DB_USER} -e \"DROP DATABASE IF EXISTS ${DB_CI};\""
                     } catch (e) {
                         echo "No se pudo borrar ${DB_CI}: ${e}"
                     }
